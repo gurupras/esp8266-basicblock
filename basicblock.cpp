@@ -39,6 +39,8 @@ void BasicBlock::setup()
 		EEPROM.commit();
 	}
 
+	WiFi.hostname(config.hostname);
+
 	bool shouldStartAP = false;
 
 	// TODO: Add logic to start AP if ESP was continuously reset X times
