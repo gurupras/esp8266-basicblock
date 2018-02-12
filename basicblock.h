@@ -20,6 +20,8 @@ struct config {
 	char hostname[32];
 	char ssid[64];
 	char psk[64];
+	int resetCounter;
+	bool forceStartAP;
 };
 
 static void print_config(struct config *config) {
@@ -27,6 +29,8 @@ static void print_config(struct config *config) {
 	Serial.printf("hostname: %s\n", config->hostname);
 	Serial.printf("ssid: %s\n", config->ssid);
 	Serial.printf("psk: %s\n", config->psk);
+	Serial.printf("resetCounter: %d\n", config->resetCounter);
+	Serial.printf("forceStartAP: %s\n", config->forceStartAP ? "true" : "false");
 }
 
 // library interface description
@@ -47,6 +51,7 @@ class BasicBlock
   // library-accessible "private" interface
   private:
     struct config config;
+		void updateResetCounter(int);
 		void setupNetwork(void);
 		void setupOTA(void);
 };

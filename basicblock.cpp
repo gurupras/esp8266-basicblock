@@ -15,6 +15,7 @@ void BasicBlock::setup()
 {
 	// Try to set up the UUID and hostname
 	EEPROM.begin(512);
+
 	/*
 	for(int i = CONFIG_START_ADDR; i < CONFIG_START_ADDR+sizeof(struct config); i++) {
 		EEPROM.write(i, 0);
@@ -22,6 +23,7 @@ void BasicBlock::setup()
 	*/
 
 	EEPROM.get(CONFIG_START_ADDR, config);
+	Serial.println();	// To get rid of junk that shows up in the serial monitor
 	print_config(&config);
 	if(config.UUID[8] != '-') {
 		// Invalid UUID
@@ -29,26 +31,49 @@ void BasicBlock::setup()
 		strncpy(config.UUID, DEFAULT_UUID, 36);
 		snprintf(config.hostname, 32, "ESP-%d", ESP.getChipId());
 
-		// FIXME: Hacked ssid, psk
-		snprintf(config.ssid, 64, "Lord of the Pings");
-		snprintf(config.psk, 64, "alohomora");
-
 		EEPROM.put(CONFIG_START_ADDR, config);
 
 		Serial.println("EEPROM contents after put+get:");
 		EEPROM.get(CONFIG_START_ADDR, config);
 		print_config(&config);
-
 		EEPROM.commit();
+	}
 
-		// TODO: Start AP
-		// TODO: Add logic to start AP if ESP was continuously reset X times
-	} else {
-		Serial.printf("Read valid config from EEPROM...\n");
+	bool shouldStartAP = false;
+
+	// TODO: Add logic to start AP if ESP was continuously reset X times
+	if(strlen(config.ssid) == 0) {
+		shouldStartAP =  true;
+	}
+
+	if(config.resetCounter != 0) {
+    shouldStartAP = true;
+    // Reset the resetCounter
+		updateResetCounter(0);
+	}
+
+	if(shouldStartAP) {
+		Serial.printf("Starting soft AP with SSID: %s\n", config.hostname);
+		IPAddress local_IP(192,168,1,1);
+		IPAddress gateway(192,168,1,1);
+		IPAddress subnet(255,255,255,0);
+		WiFi.softAPConfig(local_IP, gateway, subnet);
+		WiFi.softAP(config.hostname);
+	}
+
+	if(strlen(config.ssid) != 0) {
+		Serial.printf("Read wifi config from EEPROM...\n");
 		setupNetwork();
 		setupOTA();
-
 	}
+}
+
+void BasicBlock::updateResetCounter(int val)
+{
+	EEPROM.begin(512);
+	int offset = offsetof(struct config, resetCounter);
+	EEPROM.put(CONFIG_START_ADDR+offset, 0);
+	EEPROM.commit();
 }
 
 /**
@@ -82,7 +107,7 @@ char *BasicBlock::getHostname()
 
 void BasicBlock::updateConfig(char *configJsonStr)
 {
-	StaticJsonBuffer<256> jsonBuffer;
+	StaticJsonBuffer<512> jsonBuffer;
 	JsonObject& root = jsonBuffer.parseObject(configJsonStr);
 	struct config newConfig;
 	memset(&newConfig, 0, sizeof(struct config));
@@ -104,8 +129,10 @@ void BasicBlock::setupNetwork() {
   WiFi.begin(config.ssid, config.psk);
   uint8_t i = 0;
   while (WiFi.status() != WL_CONNECTED && i++ < 20) delay(500);
-  if(i == 21){
-    while(1) delay(500);
+  if(i == 21) {
+    Serial.println("Unable to connect to wifi ... Starting AP mode");
+		updateResetCounter(3);
+		ESP.reset();	// FIXME: This should ideally set a flag or reset config.ssid+psk so it doesn't keep resetting and doesn't lose existing wifi credentials
   }
   WiFi.hostname(config.hostname);
   Serial.printf("Wi-Fi connection established\n");
