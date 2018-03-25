@@ -16,15 +16,16 @@ void BasicBlock::setup()
 	// Try to set up the UUID and hostname
 	EEPROM.begin(512);
 
-	/*
-	for(int i = CONFIG_START_ADDR; i < CONFIG_START_ADDR+sizeof(struct config); i++) {
-		EEPROM.write(i, 0);
-	}
-	*/
-
 	EEPROM.get(CONFIG_START_ADDR, config);
 	Serial.println();	// To get rid of junk that shows up in the serial monitor
 	print_config(&config);
+
+	if(config.resetEEPROM) {
+		// We need to reset the EEPROM
+		resetEEPROM();
+		ESP.reset();
+	}
+
 	if(config.UUID[8] != '-') {
 		// Invalid UUID
 		Serial.printf("Invalid UUID..Overwriting config with defaults\n");
@@ -67,6 +68,22 @@ void BasicBlock::setup()
 		Serial.printf("Read wifi config from EEPROM...\n");
 		setupNetwork();
 		setupOTA();
+	}
+}
+
+// Expects EEPROM.begin() to have been called
+void BasicBlock::resetConfig()
+{
+	for(int i = CONFIG_START_ADDR; i < CONFIG_START_ADDR+sizeof(struct config); i++) {
+		EEPROM.write(i, 0);
+	}
+	EEPROM.commit();
+}
+
+void BasicBlock::resetEEPROM()
+{
+	for(int i = 0; i < EEPROM.length(); i++) {
+		EEPROM.write(i, 0);
 	}
 }
 

@@ -21,6 +21,7 @@ struct config {
 	char ssid[64];
 	char psk[64];
 	int resetCounter;
+	bool resetEEPROM;
 	bool forceStartAP;
 };
 
@@ -52,6 +53,8 @@ class BasicBlock
   private:
     struct config config;
 		void updateResetCounter(int);
+		void resetEEPROM(void);
+		void resetConfig(void);
 		void setupNetwork(void);
 		void setupOTA(void);
 };
