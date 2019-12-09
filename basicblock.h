@@ -16,7 +16,7 @@
 #define CONFIG_START_ADDR 1
 
 struct config {
-	char UUID[37];
+	char uuid[37];
 	char hostname[32];
 	char ssid[64];
 	char psk[64];
@@ -26,7 +26,7 @@ struct config {
 };
 
 static void print_config(struct config *config) {
-	Serial.printf("UUID: %s\n", config->UUID);
+	Serial.printf("UUID: %s\n", config->uuid);
 	Serial.printf("hostname: %s\n", config->hostname);
 	Serial.printf("ssid: %s\n", config->ssid);
 	Serial.printf("psk: %s\n", config->psk);
@@ -41,12 +41,16 @@ class BasicBlock
   public:
     BasicBlock();
     void setup(void);
-		char *wsServeIndex(void);
+		virtual char *wsServeIndex(void);
 		char *getUUID(void);
 		char *getHostname(void);
 		char *getWifiSSID(void);
 		char *getWifiPSK(void);
 		void updateConfig(char *);
+		void updateUUID(char *);
+		void updateHostname(char *);
+		void updateSSID(char *);
+		void updatePSK(char *);
 		void loop(void);
 
   // library-accessible "private" interface
