@@ -11,36 +11,35 @@ BasicBlock::BasicBlock()
 
 }
 
-void BasicBlock::setup()
+void BasicBlock::earlySetup()
 {
-	// Try to set up the UUID and hostname
-	EEPROM.begin(512);
+	BasicBlock::earlySetup(true);
+}
 
+void BasicBlock::earlySetup(bool shouldReset)
+{
+	EEPROM.begin(512);
 	EEPROM.get(CONFIG_START_ADDR, config);
 	Serial.println();	// To get rid of junk that shows up in the serial monitor
 	print_config(&config);
-
-	// TODO: Add logic to start AP if ESP was continuously reset X times
-	updateResetCounter(++config.resetCounter);
-	delay(3000);
+	updateResetCounter(config.resetCounter + 1);
 
 	if (config.resetCounter >= 5) {
-		config.resetEEPROM = 1;
-	} else {
-		config.resetCounter = 0;
+		EEPROM.begin(512);
+		resetConfig();
+		if (shouldReset) {
+			ESP.reset();
+		}
 	}
+}
 
-	if(config.resetEEPROM) {
-		// We need to reset the EEPROM
-		resetEEPROM();
-		Serial.printf("Finished reset of EEPROM. Restarting ESP\n");
-		ESP.reset();
-	}
-
-	if(config.uuid[8] != '-') {
+void BasicBlock::setup()
+{
+	delay(500);
+	if(config.UUID[8] != '-') {
 		// Invalid UUID
 		Serial.printf("Invalid UUID..Overwriting config with defaults\n");
-		strncpy(config.uuid, DEFAULT_UUID, 36);
+		strncpy(config.UUID, DEFAULT_UUID, 36);
 		snprintf(config.hostname, 32, "ESP-%d", ESP.getChipId());
 
 		EEPROM.put(CONFIG_START_ADDR, config);
@@ -55,13 +54,15 @@ void BasicBlock::setup()
 
 	bool shouldStartAP = false;
 
+	// TODO: Add logic to start AP if ESP was continuously reset X times
 	if(strlen(config.ssid) == 0) {
 		shouldStartAP =  true;
 	}
 
-	if(config.resetCounter != 0) {
-		shouldStartAP = true;
-		memset(config.ssid, 0, sizeof(config.ssid));    
+	if(config.resetCounter == 3) {
+    shouldStartAP = true;
+    // Reset the resetCounter
+		updateResetCounter(0);
 	}
 
 	if(shouldStartAP) {
@@ -78,63 +79,8 @@ void BasicBlock::setup()
 		setupNetwork();
 		setupOTA();
 	}
-}
-
-// Expects EEPROM.begin() to have been called
-void BasicBlock::resetConfig()
-{
-	for(int i = CONFIG_START_ADDR; i < CONFIG_START_ADDR+sizeof(struct config); i++) {
-		EEPROM.write(i, 0);
-	}
-	EEPROM.commit();
-}
-
-void BasicBlock::resetEEPROM()
-{
-	for(int i = 0; i < EEPROM.length(); i++) {
-		EEPROM.write(i, 0);
-	}
-	EEPROM.commit();
-}
-
-void BasicBlock::updateUUID(char *val)
-{
-	EEPROM.begin(512);
-	int offset = offsetof(struct config, uuid);
-	memset(config.uuid, 0, sizeof(config.uuid));
-	strncpy(config.uuid, val, sizeof(config.uuid));
-	EEPROM.put(CONFIG_START_ADDR+offset, config.uuid);
-	EEPROM.commit();
-}
-
-void BasicBlock::updateHostname(char *val)
-{
-	EEPROM.begin(512);
-	int offset = offsetof(struct config, hostname);
-	memset(config.hostname, 0, sizeof(config.hostname));
-	strncpy(config.hostname, val, sizeof(config.hostname));
-	EEPROM.put(CONFIG_START_ADDR+offset, config.hostname);
-	EEPROM.commit();
-}
-
-void BasicBlock::updateSSID(char *val)
-{
-	EEPROM.begin(512);
-	int offset = offsetof(struct config, ssid);
-	memset(config.ssid, 0, sizeof(config.ssid));
-	strncpy(config.ssid, val, sizeof(config.ssid));
-	EEPROM.put(CONFIG_START_ADDR+offset, config.ssid);
-	EEPROM.commit();
-}
-
-void BasicBlock::updatePSK(char *val)
-{
-	EEPROM.begin(512);
-	int offset = offsetof(struct config, psk);
-	memset(config.psk, 0, sizeof(config.psk));
-	strncpy(config.psk, val, sizeof(config.psk));
-	EEPROM.put(CONFIG_START_ADDR+offset, config.psk);
-	EEPROM.commit();
+	updateResetCounter(0);
+	Serial.printf("BasicBlock::setup() complete\n");
 }
 
 void BasicBlock::updateResetCounter(int val)
@@ -151,12 +97,30 @@ void BasicBlock::updateResetCounter(int val)
  */
 char *BasicBlock::wsServeIndex()
 {
-	return R"=(<!DOCTYPE html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel=stylesheet><title>basicblock-vuejs</title><link href=/static/css/app.2c8b518f6458c4af5551f53d4881abff.css rel=stylesheet></head><body><div id=app></div><script type=text/javascript src=/static/js/manifest.2ae2e69a05c33dfc65f8.js></script><script type=text/javascript src=/static/js/vendor.a185610171b21f082148.js></script><script type=text/javascript src=/static/js/app.eedca2c9cbf4e8820b57.js></script></body></html>)=";
+	return "<html><head> <style>.button, button, input[type='button'], input[type='submit']{background-color: #9b4dca; border: 0.1rem solid #9b4dca; border-radius: .4rem; color: #fff; cursor: pointer; display: inline-block; font-size: 1.1rem; font-weight: 700; height: 3.8rem; letter-spacing: .1rem; line-height: 3.8rem; padding: 0 3.0rem; text-align: center; text-decoration: none; text-transform: uppercase; white-space: nowrap;}.button:hover, button:hover, input[type='button']:hover, input[type='submit']:hover{color: #fff; background-color: #606c76;}label, legend{display: block; font-size: 1.6rem; font-weight: 700; margin-bottom: .5rem;}input[type='email'], input[type='number'], input[type='password'], input[type='search'], input[type='tel'], input[type='text'], input[type='url'], textarea, select{-webkit-appearance: none; -moz-appearance: none; appearance: none; background-color: transparent; border: 0.1rem solid #d1d1d1; border-radius: .4rem; box-shadow: none; box-sizing: inherit; height: 3.8rem; padding: .6rem 1.0rem; width: 100%;}input[type='email']:focus, input[type='number']:focus, input[type='password']:focus, input[type='search']:focus, input[type='tel']:focus, input[type='text']:focus, input[type='url']:focus, textarea:focus, select:focus{border-color: #9b4dca; outline: 0;}fieldset, input, select, textarea{margin-bottom: 1.5rem;}button, input{overflow: visible;}button, input, optgroup, select, textarea{font-family: sans-serif; font-size: 100%; line-height: 1.15; margin: 0;}*, *:after, *:before{box-sizing: inherit;}body{color: #606c76; font-family: 'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif; font-size: 1.6em; font-weight: 300; letter-spacing: .01em; line-height: 1.6;}body{margin: 0;}html{box-sizing: border-box; font-size: 62.5%;}html{font-family: sans-serif; line-height: 1.15; -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%;}@media (min-width: 40rem) .row{flex-direction: row; margin-left: -1.0rem; width: calc(100% + 2.0rem);}.row{display: flex; flex-direction: column; padding: 0; width: 100%;}@media (min-width: 40rem) .row .column{margin-bottom: inherit; padding: 0 1.0rem;}.row .column{display: block; flex: 1 1 auto; margin-left: 0; max-width: 100%; width: 100%;}</style></head><body> <h1>Device Configuration</h1> <div class='row'> <div class='column' style='flex: 0 0 30%; max-width: 60%'> <div> <label for='uuid'>Device UUID</label> <input id='uuid' type='text'> <button id='generate-uuid' class='button'>Generate UUID</button> </div><div> <label for='hostname'>Device Hostname</label> <input id='hostname' type='text'> </div></div></div><h2>Wi-Fi configuration</h2> <div class='row'> <div class='column' style='flex: 0 0 30%; max-width: 60%'> <div> <label for='wifi-ssid'>Wi-Fi SSID</label> <input id='wifi-ssid' type='text'> <label for='wifi-psk'>Wi-Fi Password</label> <input id='wifi-psk' type='password'> </div></div></div><button id='update-btn' class='button'>Update</button> <script>function xhr(method, endpoint, data, type){return new Promise((resolve, reject)=>{function response(){resolve(this.responseText);}var req=new XMLHttpRequest(); req.overrideMimeType('text/plain; charset=utf'); req.addEventListener('loadend', response); req.open(method, endpoint); if (type){req.setRequestHeader('Content-Type', type);}req.send(data);});}function generateUUID(){var dt=new Date().getTime(); var uuid='xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){var r=(dt + Math.random() * 16) % 16 | 0; dt=Math.floor(dt / 16); return (c=='x' ? r : (r & 0x3 | 0x8)).toString(16);}); return uuid;}window.onload=function(){var uuid=document.getElementById('uuid'); var hostname=document.getElementById('hostname'); var ssid=document.getElementById('wifi-ssid'); var psk=document.getElementById('wifi-psk'); xhr('GET', '/bblock-get-uuid').then((uuidStr)=>{uuid.value=uuidStr;}); xhr('GET', '/bblock-get-hostname').then((hostnameStr)=>{hostname.value=hostnameStr;}); xhr('GET', '/bblock-get-wifi-ssid').then((ssidStr)=>{ssid.value=ssidStr;}); xhr('GET', '/bblock-get-wifi-psk').then((pskStr)=>{psk.value=pskStr;}); var updateButton=document.getElementById('update-btn'); updateButton.addEventListener('click', ()=>{var payload={uuid: uuid.value, hostname: hostname.value, ssid: ssid.value, psk: psk.value}; xhr('POST', '/bblock-update-config', JSON.stringify(payload), 'application/json');}); var generateUUIDButton=document.getElementById('generate-uuid'); generateUUIDButton.addEventListener('click', ()=>{uuid.value=generateUUID();});}; </script></body></html>";
+}
+
+void BasicBlock::updateUUID(char *uuid) {
+	memset(config.UUID, 0, strlen(DEFAULT_UUID));
+	strncpy(config.UUID, uuid, strlen(DEFAULT_UUID));
+	EEPROM.begin(512);
+	int offset = offsetof(struct config, UUID);
+	EEPROM.put(CONFIG_START_ADDR + offset, config.UUID);
+	EEPROM.commit();
 }
 
 char *BasicBlock::getUUID()
 {
-	return config.uuid;
+	return config.UUID;
+}
+
+void BasicBlock::updateWifiSSID(char *ssid) {
+	memset(config.ssid, 0, 64);
+	strncpy(config.ssid, ssid, strlen(ssid));
+	EEPROM.begin(512);
+	int offset = offsetof(struct config, ssid);
+	EEPROM.put(CONFIG_START_ADDR + offset, config.ssid);
+	EEPROM.commit();
 }
 
 char *BasicBlock::getWifiSSID()
@@ -164,9 +128,27 @@ char *BasicBlock::getWifiSSID()
 	return config.ssid;
 }
 
+void BasicBlock::updateWifiPSK(char *psk) {
+	memset(config.psk, 0, 64);
+	strncpy(config.psk, psk, strlen(psk));
+	EEPROM.begin(512);
+	int offset = offsetof(struct config, psk);
+	EEPROM.put(CONFIG_START_ADDR + offset, config.psk);
+	EEPROM.commit();
+}
+
 char *BasicBlock::getWifiPSK()
 {
 	return config.psk;
+}
+
+void BasicBlock::updateHostname(char *hostname) {
+	memset(config.hostname, 0, 32);
+	strncpy(config.hostname, hostname, strlen(hostname));
+	EEPROM.begin(512);
+	int offset = offsetof(struct config, hostname);
+	EEPROM.put(CONFIG_START_ADDR + offset, config.hostname);
+	EEPROM.commit();
 }
 
 char *BasicBlock::getHostname()
@@ -181,7 +163,7 @@ void BasicBlock::updateConfig(char *configJsonStr)
 	struct config newConfig;
 	memset(&newConfig, 0, sizeof(struct config));
   // TODO: Add checks here to make sure values are sane
-	strncpy(newConfig.uuid, root["uuid"], 36);
+	strncpy(newConfig.UUID, root["uuid"], 36);
 	strncpy(newConfig.hostname, root["hostname"], 32);
 	strncpy(newConfig.ssid, root["ssid"], 64);
 	strncpy(newConfig.psk, root["psk"], 64);
@@ -194,17 +176,37 @@ void BasicBlock::updateConfig(char *configJsonStr)
 	ESP.reset();
 }
 
+// Expects EEPROM.begin() to have been called
+void BasicBlock::resetConfig()
+{
+	struct config c;
+	memset(&c, 0, sizeof(struct config));
+	EEPROM.put(CONFIG_START_ADDR, c);
+	EEPROM.commit();
+}
+
+void BasicBlock::resetEEPROM()
+{
+	for(int i = 0; i < EEPROM.length(); i++) {
+		EEPROM.write(i, 0);
+	}
+	EEPROM.commit();
+}
+
 void BasicBlock::setupNetwork() {
-  WiFi.begin(config.ssid, config.psk);
-  uint8_t i = 0;
-  while (WiFi.status() != WL_CONNECTED && i++ < 20) delay(500);
-  if(i == 21) {
-    Serial.println("Unable to connect to wifi ... Starting AP mode");
+	WiFi.begin(config.ssid, config.psk);
+	uint8_t i = 0;
+	while (WiFi.status() != WL_CONNECTED && i++ < 20) delay(500);
+	if(i == 21) {
+		Serial.println("Unable to connect to wifi ... Starting AP mode");
 		updateResetCounter(3);
+		updateWifiSSID("");
+		updateWifiPSK("");
+		Serial.printf("Resetting due to wifi timeout\n");
 		ESP.reset();	// FIXME: This should ideally set a flag or reset config.ssid+psk so it doesn't keep resetting and doesn't lose existing wifi credentials
-  }
-  WiFi.hostname(config.hostname);
-  Serial.printf("Wi-Fi connection established\n");
+	}
+	WiFi.hostname(config.hostname);
+	Serial.printf("Wi-Fi connection established\n");
 }
 
 void BasicBlock::setupOTA() {

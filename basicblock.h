@@ -16,22 +16,20 @@
 #define CONFIG_START_ADDR 1
 
 struct config {
-	char uuid[37];
+	char UUID[37];
 	char hostname[32];
 	char ssid[64];
 	char psk[64];
 	int resetCounter;
-	bool resetEEPROM;
 	bool forceStartAP;
 };
 
 static void print_config(struct config *config) {
-	Serial.printf("UUID: %s\n", config->uuid);
+	Serial.printf("UUID: %s\n", config->UUID);
 	Serial.printf("hostname: %s\n", config->hostname);
 	Serial.printf("ssid: %s\n", config->ssid);
 	Serial.printf("psk: %s\n", config->psk);
 	Serial.printf("resetCounter: %d\n", config->resetCounter);
-	Serial.printf("forceStartAP: %s\n", config->forceStartAP ? "true" : "false");
 }
 
 // library interface description
@@ -40,25 +38,33 @@ class BasicBlock
   // user-accessible "public" interface
   public:
     BasicBlock();
+	void earlySetup(void);
+	void earlySetup(bool);
     void setup(void);
-		virtual char *wsServeIndex(void);
+		char *wsServeIndex(void);
 		char *getUUID(void);
-		char *getHostname(void);
-		char *getWifiSSID(void);
-		char *getWifiPSK(void);
-		void updateConfig(char *);
 		void updateUUID(char *);
+
+		char *getHostname(void);
 		void updateHostname(char *);
-		void updateSSID(char *);
-		void updatePSK(char *);
+
+		char *getWifiSSID(void);
+		void updateWifiSSID(char *);
+
+		char *getWifiPSK(void);
+		void updateWifiPSK (char *);
+
+		void updateConfig(char *);
 		void loop(void);
 
-  // library-accessible "private" interface
-  private:
-    struct config config;
-		void updateResetCounter(int);
 		void resetEEPROM(void);
 		void resetConfig(void);
+
+  // library-accessible "private" interface
+  protected:
+		struct config config;
+  private:
+		void updateResetCounter(int);
 		void setupNetwork(void);
 		void setupOTA(void);
 };
